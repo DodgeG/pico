@@ -186,3 +186,224 @@ uv run pico --provider deepseek
 ```bash
 uv run ruff check .
 ```
+
+## Git 配置与同步
+
+这个仓库当前建议保留两个远端：
+
+- `origin`：你自己的 GitHub 仓库，用来日常开发和备份
+- `upstream`：Gitee 上的原始仓库，用来同步上游更新
+
+第一次在当前电脑配置远端：
+
+```bash
+git remote -v
+git remote add upstream https://gitee.com/htxoffical/pico.git
+git fetch upstream
+```
+
+如果 `upstream` 已经存在，但地址不对，可以改成：
+
+```bash
+git remote set-url upstream https://gitee.com/htxoffical/pico.git
+git fetch upstream
+```
+
+查看当前本地、GitHub 和 Gitee 的关系：
+
+```bash
+git remote -v
+git branch -vv
+git status --short --branch
+```
+
+### 日常同步上游
+
+先看 Gitee 上游是否有新提交：
+
+```bash
+git fetch upstream
+git log --oneline --graph --decorate main..upstream/main
+git log --oneline --graph --decorate upstream/main..main
+```
+
+含义：
+
+- `main..upstream/main`：上游有、你本地没有的提交
+- `upstream/main..main`：你本地有、上游没有的提交
+
+如果只是想把 Gitee 的更新合到你当前分支，推荐先用 `merge`：
+
+```bash
+git checkout main
+git fetch upstream
+git merge upstream/main
+git push origin main
+```
+
+`merge` 的好处是更稳，更适合“我在 GitHub 上有自己的改动，同时还要继续跟 Gitee 上游同步”的情况。
+
+如果你想保留更线性的提交历史，也可以用 `rebase`：
+
+```bash
+git checkout main
+git fetch upstream
+git rebase upstream/main
+git push --force-with-lease origin main
+```
+
+只有当你明确知道自己在做什么时，才建议用 `rebase` 后强推。
+
+如果上游只改了几个你想单独拿过来的提交，可以用：
+
+```bash
+git fetch upstream
+git log --oneline upstream/main
+git cherry-pick <commit1> <commit2>
+git push origin main
+```
+
+### 同步前的建议
+
+同步前最好先把工作区清理一下，尤其是本地生成物：
+
+```bash
+git status --short --branch
+```
+
+如果你只是临时想把未提交改动收起来：
+
+```bash
+git stash -u
+```
+
+同步完成后再恢复：
+
+```bash
+git stash pop
+```
+
+如果遇到冲突：
+
+```bash
+git status
+```
+
+手动解决冲突后：
+
+```bash
+git add <冲突文件>
+git commit
+```
+
+如果你在走 `rebase`，则改为：
+
+```bash
+git add <冲突文件>
+git rebase --continue
+```
+
+## 换电脑后的完整流程
+
+如果你以后换电脑，推荐按下面这套顺序恢复这个项目。
+
+### 1. 拉取 GitHub 仓库
+
+```bash
+git clone https://github.com/DodgeG/pico.git
+cd pico
+```
+
+### 2. 配置 Git 远端
+
+把 Gitee 原仓库配置成 `upstream`，以后可以继续同步上游更新：
+
+```bash
+git remote add upstream https://gitee.com/htxoffical/pico.git
+git fetch upstream
+git remote -v
+```
+
+你应该看到类似：
+
+```text
+origin    https://github.com/DodgeG/pico.git
+upstream  https://gitee.com/htxoffical/pico.git
+```
+
+### 3. 准备 Python 环境
+
+项目需要 Python 3.10+。
+
+如果新电脑没有 `uv`，最稳妥的方式是直接用 Python 自带虚拟环境：
+
+```bash
+python3.11 -m venv .venv
+. .venv/bin/activate
+pip install -U pip
+pip install -e .
+```
+
+如果你已经装了 `uv`，也可以继续用：
+
+```bash
+uv sync
+```
+
+### 4. 恢复本地 `.env`
+
+```bash
+cp .env.example .env
+```
+
+然后把你常用 provider 的 key 填进去，例如 DeepSeek：
+
+```bash
+PICO_DEEPSEEK_API_BASE=https://api.deepseek.com/anthropic
+PICO_DEEPSEEK_API_KEY=your-api-key
+PICO_DEEPSEEK_MODEL=deepseek-v4-pro
+```
+
+`.env` 不要提交到仓库。
+
+### 5. 启动并验证
+
+交互式启动：
+
+```bash
+.venv/bin/pico --provider deepseek
+```
+
+或 one-shot 验证：
+
+```bash
+.venv/bin/pico --provider deepseek "只回复：启动成功"
+```
+
+### 6. 之后的日常工作流
+
+在新电脑上的常规节奏通常是：
+
+```bash
+git checkout main
+git pull origin main
+git fetch upstream
+git merge upstream/main
+git push origin main
+```
+
+如果你准备继续开发自己的改动，建议新建分支：
+
+```bash
+git checkout -b my-change
+```
+
+开发完成后：
+
+```bash
+git add .
+git commit -m "your message"
+git push origin my-change
+```
+
+如果之后再把分支合回 `main`，再继续按上面的 `origin + upstream` 双远端方式维护即可。
